@@ -20,8 +20,8 @@ export default function Overview({ account, orders, total, onNav, onConnect }: P
         <h1 className="mt-3 text-2xl font-bold sm:text-3xl">Safe payments for online orders</h1>
         <p className="mt-2 max-w-2xl text-mute">Buying through WhatsApp, Instagram or Telegram? Pay into a NEAR smart contract. The seller is paid only after you confirm delivery.</p>
         <div className="mt-5 flex flex-wrap gap-2">
-          {account ? <button onClick={() => onNav('create')} className="rounded-lg bg-near px-4 py-2.5 font-semibold text-bg">Create an order</button>
-            : <button onClick={onConnect} className="rounded-lg bg-near px-4 py-2.5 font-semibold text-bg">Connect wallet</button>}
+          {account ? <button onClick={() => onNav('create')} className="rounded-lg bg-near px-4 py-2.5 font-semibold text-onnear">Create an order</button>
+            : <button onClick={onConnect} className="rounded-lg bg-near px-4 py-2.5 font-semibold text-onnear">Connect wallet</button>}
           {account && <button onClick={() => onNav('orders')} className="rounded-lg border border-line px-4 py-2.5 font-semibold">My orders</button>}
         </div>
       </section>

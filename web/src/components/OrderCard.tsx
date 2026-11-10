@@ -6,7 +6,7 @@ import { EXPLORER } from '../lib/config';
 import type { Order, RunFn } from '../types';
 
 function Btn({ onClick, disabled, tone = 'main', children }: { onClick: () => void; disabled?: boolean; tone?: 'main' | 'ghost' | 'warn'; children: React.ReactNode }) {
-  const c = tone === 'main' ? 'bg-near text-bg' : tone === 'warn' ? 'border border-red-400/40 text-red-300' : 'border border-line text-ink';
+  const c = tone === 'main' ? 'bg-near text-onnear' : tone === 'warn' ? 'border border-red-400/40 text-red-600 dark:text-red-300' : 'border border-line text-ink';
   return <button onClick={onClick} disabled={disabled} className={`rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-40 ${c}`}>{children}</button>;
 }
 
@@ -49,13 +49,13 @@ export default function OrderCard({ order: o, me, busy, run }: { order: Order; m
         <div className="truncate">Buyer: <span className="text-ink">{o.buyer}</span></div>
         <div className="truncate">Seller: <span className="text-ink">{o.seller}</span></div>
         {deadline !== null && (
-          <div>Ship by: <span className={expired && o.status === 'Funded' ? 'text-red-300' : 'text-ink'}>{new Date(deadline).toLocaleString()}{expired && o.status === 'Funded' ? ' (passed)' : ''}</span></div>
+          <div>Ship by: <span className={expired && o.status === 'Funded' ? 'text-red-600 dark:text-red-300' : 'text-ink'}>{new Date(deadline).toLocaleString()}{expired && o.status === 'Funded' ? ' (passed)' : ''}</span></div>
         )}
       </dl>
       {o.status === 'Created' && isSeller && <p className="mt-3 text-xs text-mute">Waiting for the buyer to pay into escrow.</p>}
-      {o.status === 'Disputed' && <p className="mt-3 text-xs text-red-300">Funds are locked. The buyer can still confirm delivery, or the seller can refund the buyer.</p>}
+      {o.status === 'Disputed' && <p className="mt-3 text-xs text-red-600 dark:text-red-300">Funds are locked. The buyer can still confirm delivery, or the seller can refund the buyer.</p>}
       {(o.status === 'Releasing' || o.status === 'Refunding') && (
-        <p className="mt-3 flex items-center gap-2 text-xs text-violet-300"><Loader2 className="h-3 w-3 animate-spin" />Payout in progress…</p>
+        <p className="mt-3 flex items-center gap-2 text-xs text-violet-600 dark:text-violet-300"><Loader2 className="h-3 w-3 animate-spin" />Payout in progress…</p>
       )}
       {buttons.length > 0 && <div className="mt-4 flex flex-wrap gap-2">{buttons}</div>}
       {txs.length > 0 && (

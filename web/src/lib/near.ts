@@ -3,7 +3,7 @@ import { CONTRACT_ID, USDC_ID, RPC_URL } from './config';
 import type { Order, Token } from '../types';
 import { devSession, devSend } from './devwallet';
 
-export const connector = new NearConnector({ network: 'testnet' });
+export const connector = new NearConnector({ network: 'testnet', features: { testnet: true } });
 
 const TGAS = 10n ** 12n;
 export const DECIMALS: Record<Token, number> = { Near: 24, Usdc: 6 };

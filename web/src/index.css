@@ -1,5 +1,6 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-html { color-scheme: dark; }
+:root { --bg: 238 243 239; --card: 250 252 250; --line: 212 223 215; --ink: 22 32 27; --mute: 94 112 103; --near: 8 145 100; --onnear: 255 255 255; color-scheme: light; }
+.dark { --bg: 17 26 29; --card: 24 35 39; --line: 38 53 57; --ink: 215 224 218; --mute: 143 163 155; --near: 79 209 161; --onnear: 17 26 29; color-scheme: dark; }
 body { @apply bg-bg text-ink antialiased; }

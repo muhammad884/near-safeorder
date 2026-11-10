@@ -51,9 +51,9 @@ export default function App() {
         <div className="fixed inset-x-0 bottom-0 z-20 p-3">
           <div className="mx-auto flex max-w-xl items-start gap-3 rounded-xl border border-line bg-card p-3 shadow-lg">
             {busy ? <Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-near" />
-              : notice?.kind === 'ok' ? <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-near" /> : <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-300" />}
+              : notice?.kind === 'ok' ? <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-near" /> : <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600 dark:text-red-300" />}
             <div className="min-w-0 flex-1 text-sm">
-              {busy ? <p>{busy}… confirm in your wallet</p> : <p className={notice?.kind === 'err' ? 'text-red-300' : ''}>{notice?.text}</p>}
+              {busy ? <p>{busy}… confirm in your wallet</p> : <p className={notice?.kind === 'err' ? 'text-red-600 dark:text-red-300' : ''}>{notice?.text}</p>}
               {!busy && notice?.hashes?.map((h) => (
                 <a key={h} href={`${EXPLORER}/txns/${h}`} target="_blank" rel="noreferrer" className="mt-1 flex items-center gap-1 text-xs text-mute hover:text-near"><ExternalLink className="h-3 w-3" />{h.slice(0, 16)}…</a>
               ))}

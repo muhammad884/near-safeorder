@@ -17,7 +17,7 @@ export default function CreateOrder({ account, busy, onConnect, run, onDone }: P
   if (!account) return (
     <div className="rounded-2xl border border-line bg-card p-6 text-center">
       <p className="text-mute">Connect your NEAR wallet to create an order.</p>
-      <button onClick={onConnect} className="mt-4 rounded-lg bg-near px-4 py-2.5 font-semibold text-bg">Connect wallet</button>
+      <button onClick={onConnect} className="mt-4 rounded-lg bg-near px-4 py-2.5 font-semibold text-onnear">Connect wallet</button>
     </div>
   );
 
@@ -63,8 +63,8 @@ export default function CreateOrder({ account, busy, onConnect, run, onDone }: P
         <input className={`${input} mt-1`} inputMode="numeric" value={hours} onChange={(e) => setHours(e.target.value)} />
       </label>
       <p className="text-xs text-mute">Creating an order attaches 0.01 NEAR to cover storage; the unused part is refunded automatically. You pay the escrow amount in the next step from My Orders.</p>
-      {err && <p className="rounded-lg bg-red-500/10 p-3 text-sm text-red-300">{err}</p>}
-      <button disabled={!!busy} className="flex w-full items-center justify-center gap-2 rounded-lg bg-near px-4 py-3 font-semibold text-bg disabled:opacity-50">
+      {err && <p className="rounded-lg bg-red-500/10 p-3 text-sm text-red-600 dark:text-red-300">{err}</p>}
+      <button disabled={!!busy} className="flex w-full items-center justify-center gap-2 rounded-lg bg-near px-4 py-3 font-semibold text-onnear disabled:opacity-50">
         {busy === 'Create order' && <Loader2 className="h-4 w-4 animate-spin" />}Create order
       </button>
     </form>
