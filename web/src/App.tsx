@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { AlertCircle, CheckCircle2, ExternalLink, Loader2, X } from 'lucide-react';
 import Header from './components/Header';
+import DevLogin from './components/DevLogin';
 import Overview from './pages/Overview';
 import CreateOrder from './pages/CreateOrder';
 import MyOrders from './pages/MyOrders';
@@ -40,6 +41,7 @@ export default function App() {
   return (
     <div className="min-h-screen">
       <Header page={page} setPage={setPage} account={w.accountId} onConnect={w.connect} onDisconnect={w.disconnect} />
+      {!w.accountId && <div className="mx-auto max-w-5xl px-4 pt-4"><DevLogin onLogin={w.loginDev} /></div>}
       <main className="mx-auto max-w-5xl px-4 py-6 pb-28">
         {page === 'overview' && <Overview account={w.accountId} orders={o.orders} total={o.total} onNav={setPage} onConnect={w.connect} />}
         {page === 'create' && <CreateOrder account={w.accountId} busy={busy} onConnect={w.connect} run={run} onDone={() => setPage('orders')} />}

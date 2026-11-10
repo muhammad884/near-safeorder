@@ -1,6 +1,7 @@
 import { NearConnector } from '@hot-labs/near-connect';
 import { CONTRACT_ID, USDC_ID, RPC_URL } from './config';
 import type { Order, Token } from '../types';
+import { devSession, devSend } from './devwallet';
 
 export const connector = new NearConnector({ network: 'testnet' });
 
@@ -58,6 +59,7 @@ function hashesOf(results: unknown): string[] {
   return arr.map((r: any) => r?.transaction?.hash ?? r?.transaction_outcome?.id ?? '').filter(Boolean);
 }
 async function send(txs: unknown[]): Promise<string[]> {
+  if (devSession()) return devSend(txs as any[]);
   const w: any = await connector.wallet();
   return hashesOf(await w.signAndSendTransactions({ transactions: txs }));
 }
@@ -89,3 +91,7 @@ export const openDispute = simple('open_dispute', 30);
 export const confirmDelivery = simple('confirm_delivery', 100);
 export const requestRefund = simple('request_refund', 100);
 export const sellerRefund = simple('seller_refund', 100);
+
+export async function checkKey(accountId: string, publicKey: string) {
+  await rpc('query', { request_type: 'view_access_key', finality: 'optimistic', account_id: accountId, public_key: publicKey });
+}
