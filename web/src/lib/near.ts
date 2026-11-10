@@ -1,0 +1,91 @@
+import { NearConnector } from '@hot-labs/near-connect';
+import { CONTRACT_ID, USDC_ID, RPC_URL } from './config';
+import type { Order, Token } from '../types';
+
+export const connector = new NearConnector({ network: 'testnet' });
+
+const TGAS = 10n ** 12n;
+export const DECIMALS: Record<Token, number> = { Near: 24, Usdc: 6 };
+export const SYMBOL: Record<Token, string> = { Near: 'NEAR', Usdc: 'USDC' };
+
+export function toUnits(v: string, d: number): bigint {
+  const [i, f = ''] = v.trim().split('.');
+  if (!/^\d+$/.test(i || '') || (f !== '' && !/^\d+$/.test(f))) throw new Error('Enter a valid amount');
+  if (f.length > d) throw new Error(`Max ${d} decimal places`);
+  return BigInt(i) * 10n ** BigInt(d) + BigInt((f + '0'.repeat(d)).slice(0, d) || '0');
+}
+export function fromUnits(v: string | bigint, d: number): string {
+  const s = BigInt(v).toString().padStart(d + 1, '0');
+  const int = s.slice(0, -d);
+  const frac = s.slice(-d).replace(/0+$/, '');
+  return frac ? `${int}.${frac}` : int;
+}
+
+const errText = (x: unknown) => (typeof x === 'string' ? x : JSON.stringify(x));
+async function rpc(method: string, params: unknown) {
+  const r = await fetch(RPC_URL, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 'so', method, params }),
+  });
+  const j = await r.json();
+  if (j.error) throw new Error(errText(j.error.data ?? j.error.message ?? j.error));
+  if (j.result?.error) throw new Error(errText(j.result.error));
+  return j.result;
+}
+export async function view<T>(contractId: string, method: string, args: object = {}): Promise<T> {
+  const res = await rpc('query', {
+    request_type: 'call_function', finality: 'optimistic', account_id: contractId,
+    method_name: method, args_base64: btoa(JSON.stringify(args)),
+  });
+  return JSON.parse(new TextDecoder().decode(new Uint8Array(res.result)));
+}
+export async function accountExists(id: string): Promise<boolean> {
+  try { await rpc('query', { request_type: 'view_account', finality: 'optimistic', account_id: id }); return true; }
+  catch (e) { return !/does not exist|UNKNOWN_ACCOUNT/i.test(String((e as Error).message)); }
+}
+export async function fetchOrders(account: string): Promise<Order[]> {
+  const list = await view<Order[]>(CONTRACT_ID, 'get_orders_by_account', { account_id: account, from_index: 0, limit: 50 });
+  return list.reverse();
+}
+
+// ---- wallet transactions ----
+const fc = (receiverId: string, methodName: string, args: object, tgas: number, deposit: bigint) => ({
+  receiverId,
+  actions: [{ type: 'FunctionCall', params: { methodName, args, gas: (BigInt(tgas) * TGAS).toString(), deposit: deposit.toString() } }],
+});
+function hashesOf(results: unknown): string[] {
+  const arr = Array.isArray(results) ? results : [results];
+  return arr.map((r: any) => r?.transaction?.hash ?? r?.transaction_outcome?.id ?? '').filter(Boolean);
+}
+async function send(txs: unknown[]): Promise<string[]> {
+  const w: any = await connector.wallet();
+  return hashesOf(await w.signAndSendTransactions({ transactions: txs }));
+}
+
+export const createOrder = (p: { seller: string; description: string; token: Token; amount: bigint; hours: number }) =>
+  send([fc(CONTRACT_ID, 'create_order', {
+    seller: p.seller, description: p.description, amount: p.amount.toString(), token: p.token, ship_window_hours: p.hours,
+  }, 30, 10n ** 22n)]); // 0.01 NEAR for storage, excess is refunded by the contract
+
+export const payNear = (o: Order) => send([fc(CONTRACT_ID, 'pay_near', { order_id: o.id }, 30, BigInt(o.amount))]);
+
+export async function payUsdc(o: Order): Promise<string[]> {
+  const bal = await view<string>(USDC_ID, 'ft_balance_of', { account_id: o.buyer });
+  if (BigInt(bal) < BigInt(o.amount)) throw new Error(`Not enough USDC. You have ${fromUnits(bal, 6)} USDC.`);
+  const bounds = await view<{ min: string }>(USDC_ID, 'storage_balance_bounds');
+  const [cReg, sReg] = await Promise.all([
+    view<unknown>(USDC_ID, 'storage_balance_of', { account_id: CONTRACT_ID }),
+    view<unknown>(USDC_ID, 'storage_balance_of', { account_id: o.seller }),
+  ]);
+  const txs: unknown[] = [];
+  if (!cReg) txs.push(fc(USDC_ID, 'storage_deposit', { account_id: CONTRACT_ID, registration_only: true }, 30, BigInt(bounds.min)));
+  if (!sReg) txs.push(fc(USDC_ID, 'storage_deposit', { account_id: o.seller, registration_only: true }, 30, BigInt(bounds.min)));
+  txs.push(fc(USDC_ID, 'ft_transfer_call', { receiver_id: CONTRACT_ID, amount: o.amount, msg: String(o.id) }, 100, 1n));
+  return send(txs);
+}
+const simple = (m: string, tgas: number) => (o: Order) => send([fc(CONTRACT_ID, m, { order_id: o.id }, tgas, 0n)]);
+export const markShipped = simple('mark_shipped', 30);
+export const openDispute = simple('open_dispute', 30);
+export const confirmDelivery = simple('confirm_delivery', 100);
+export const requestRefund = simple('request_refund', 100);
+export const sellerRefund = simple('seller_refund', 100);
