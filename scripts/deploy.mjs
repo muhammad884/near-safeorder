@@ -63,6 +63,7 @@ try {
   console.log('init:', msg(e));
 }
 
-const v = await provider.callFunction(ACCOUNT, 'get_usdc_contract', {});
+const rr = await (await fetch(RPC, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'query', params: { request_type: 'call_function', finality: 'optimistic', account_id: ACCOUNT, method_name: 'get_usdc_contract', args_base64: Buffer.from('{}').toString('base64') } }) })).json();
+const v = Buffer.from(rr.result.result).toString();
 console.log('get_usdc_contract ->', v);
 console.log('CONTRACT:', ACCOUNT);

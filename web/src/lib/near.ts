@@ -71,8 +71,8 @@ export const createOrder = (p: { seller: string; description: string; token: Tok
 
 export const payNear = (o: Order) => send([fc(CONTRACT_ID, 'pay_near', { order_id: o.id }, 30, BigInt(o.amount))]);
 
-export async function payUsdc(o: Order): Promise<string[]> {
-  const bal = await view<string>(USDC_ID, 'ft_balance_of', { account_id: o.buyer });
+export async function payUsdc(o: Order, payer: string): Promise<string[]> {
+  const bal = await view<string>(USDC_ID, 'ft_balance_of', { account_id: payer });
   if (BigInt(bal) < BigInt(o.amount)) throw new Error(`Not enough USDC. You have ${fromUnits(bal, 6)} USDC.`);
   const bounds = await view<{ min: string }>(USDC_ID, 'storage_balance_bounds');
   const [cReg, sReg] = await Promise.all([
@@ -95,3 +95,11 @@ export const sellerRefund = simple('seller_refund', 100);
 export async function checkKey(accountId: string, publicKey: string) {
   await rpc('query', { request_type: 'view_access_key', finality: 'optimistic', account_id: accountId, public_key: publicKey });
 }
+
+export const fetchOrder = (id: number) => view<Order | null>(CONTRACT_ID, 'get_order', { order_id: id });
+export const createInvoice = (p: { description: string; token: Token; amount: bigint; hours: number; buyer: string | null }) =>
+  send([fc(CONTRACT_ID, 'create_invoice', { description: p.description, amount: p.amount.toString(), token: p.token, ship_window_hours: p.hours, buyer: p.buyer }, 30, 10n ** 22n)]);
+export const proposeSettlement = (o: Order, buyerAmount: bigint, note: string) =>
+  send([fc(CONTRACT_ID, 'propose_settlement', { order_id: o.id, buyer_amount: buyerAmount.toString(), note }, 30, 0n)]);
+export const acceptSettlement = simple('accept_settlement', 100);
+export const retrySettlement = simple('retry_settlement', 100);

@@ -1,4 +1,5 @@
-const KEY = 'safeorder:tx:v1';
+import { CONTRACT_ID } from './config';
+const KEY = 'safeorder:tx:v2:' + CONTRACT_ID;
 export type TxEntry = { label: string; hash: string };
 function load(): Record<string, TxEntry[]> {
   try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; }

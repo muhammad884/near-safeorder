@@ -5,6 +5,7 @@ import DevLogin from './components/DevLogin';
 import Overview from './pages/Overview';
 import CreateOrder from './pages/CreateOrder';
 import MyOrders from './pages/MyOrders';
+import PayPage from './pages/PayPage';
 import { useWallet } from './hooks/useWallet';
 import { useOrders } from './hooks/useOrders';
 import { saveTx } from './lib/txlog';
@@ -19,7 +20,8 @@ function friendly(e: unknown) {
 }
 
 export default function App() {
-  const [page, setPage] = useState<Page>('overview');
+  const payParam = Number(new URLSearchParams(window.location.search).get('pay')) || 0;
+  const [page, setPage] = useState<Page>(payParam ? 'pay' : 'overview');
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
   const w = useWallet();
@@ -43,6 +45,7 @@ export default function App() {
       <Header page={page} setPage={setPage} account={w.accountId} onConnect={w.connect} onDisconnect={w.disconnect} />
       {!w.accountId && <div className="mx-auto max-w-5xl px-4 pt-4"><DevLogin onLogin={w.loginDev} /></div>}
       <main className="mx-auto max-w-5xl px-4 py-6 pb-28">
+        {page === 'pay' && payParam > 0 && <PayPage orderId={payParam} account={w.accountId} busy={busy} run={run} onConnect={w.connect} onNav={setPage} />}
         {page === 'overview' && <Overview account={w.accountId} orders={o.orders} total={o.total} onNav={setPage} onConnect={w.connect} />}
         {page === 'create' && <CreateOrder account={w.accountId} busy={busy} onConnect={w.connect} run={run} onDone={() => setPage('orders')} />}
         {page === 'orders' && <MyOrders account={w.accountId} orders={o.orders} loading={o.loading} error={o.error} busy={busy} run={run} onConnect={w.connect} onNav={setPage} onRefresh={o.refresh} />}

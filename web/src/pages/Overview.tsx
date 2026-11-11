@@ -6,7 +6,7 @@ type P = { account: string | null; orders: Order[]; total: number | null; onNav:
 
 export default function Overview({ account, orders, total, onNav, onConnect }: P) {
   const active = orders.filter((o) => ['Funded', 'Shipped', 'Disputed', 'Releasing', 'Refunding'].includes(o.status)).length;
-  const done = orders.filter((o) => o.status === 'Released').length;
+  const done = orders.filter((o) => o.status === 'Released' || o.status === 'Settled').length;
   const refunded = orders.filter((o) => o.status === 'Refunded').length;
   const steps = [
     { icon: Wallet, t: '1. Buyer pays into escrow', d: 'Funds (NEAR or native USDC) are locked in the smart contract, not sent to the seller.' },
