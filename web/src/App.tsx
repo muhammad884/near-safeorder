@@ -4,6 +4,7 @@ import Header from './components/Header';
 import DevLogin from './components/DevLogin';
 import DemoCta from './components/DemoCta';
 import DemoBar from './components/DemoBar';
+import WalletPicker from './components/WalletPicker';
 import Overview from './pages/Overview';
 import CreateOrder from './pages/CreateOrder';
 import MyOrders from './pages/MyOrders';
@@ -11,10 +12,11 @@ import PayPage from './pages/PayPage';
 import { useWallet } from './hooks/useWallet';
 import { useOrders } from './hooks/useOrders';
 import { saveTx } from './lib/txlog';
+import { useT } from './lib/i18n';
 import { EXPLORER } from './lib/config';
 import type { Page } from './types';
 
-type Notice = { kind: 'ok' | 'err'; text: string; hashes?: string[] } | null;
+type Notice = { kind: 'ok'; label: string; hashes: string[] } | { kind: 'err'; text: string } | null;
 function friendly(e: unknown) {
   const m = String((e as Error)?.message || e);
   const p = m.match(/panicked: ([^"\\]+)/);
@@ -22,6 +24,7 @@ function friendly(e: unknown) {
 }
 
 export default function App() {
+  const { t, act } = useT();
   const payParam = Number(new URLSearchParams(window.location.search).get('pay')) || 0;
   const [page, setPage] = useState<Page>(payParam ? 'pay' : 'overview');
   const [busy, setBusy] = useState<string | null>(null);
@@ -35,7 +38,7 @@ export default function App() {
     try {
       const hashes = await fn();
       if (orderId) hashes.forEach((h) => saveTx(orderId, label, h));
-      setNotice({ kind: 'ok', text: `${label}: transaction sent`, hashes });
+      setNotice({ kind: 'ok', label, hashes });
       await refreshSoon();
       return true;
     } catch (e) { setNotice({ kind: 'err', text: friendly(e) }); return false; }
@@ -53,14 +56,17 @@ export default function App() {
         {page === 'create' && <CreateOrder key={w.accountId ?? 'x'} account={w.accountId} busy={busy} onConnect={w.connect} run={run} onDone={() => setPage('orders')} />}
         {page === 'orders' && <MyOrders account={w.accountId} orders={o.orders} loading={o.loading} error={o.error} busy={busy} run={run} onConnect={w.connect} onNav={setPage} onRefresh={o.refresh} />}
       </main>
+      <WalletPicker open={w.pickerOpen} onClose={w.closePicker} onPick={w.pick} />
       {(busy || notice) && (
         <div className="fixed inset-x-0 bottom-0 z-20 p-3">
           <div className="mx-auto flex max-w-xl items-start gap-3 rounded-xl border border-line bg-card p-3 shadow-lg">
             {busy ? <Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-near" />
               : notice?.kind === 'ok' ? <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-near" /> : <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600 dark:text-red-300" />}
             <div className="min-w-0 flex-1 text-sm">
-              {busy ? <p>{busy}… confirm in your wallet</p> : <p className={notice?.kind === 'err' ? 'text-red-600 dark:text-red-300' : ''}>{notice?.text}</p>}
-              {!busy && notice?.hashes?.map((h) => (
+              {busy ? <p>{t('tx.confirm', { label: act(busy) })}</p>
+                : notice?.kind === 'ok' ? <p>{t('tx.sent', { label: act(notice.label) })}</p>
+                : <p className="text-red-600 dark:text-red-300">{notice?.text}</p>}
+              {!busy && notice?.kind === 'ok' && notice.hashes.map((h) => (
                 <a key={h} href={`${EXPLORER}/txns/${h}`} target="_blank" rel="noreferrer" className="mt-1 flex items-center gap-1 text-xs text-mute hover:text-near"><ExternalLink className="h-3 w-3" />{h.slice(0, 16)}…</a>
               ))}
             </div>

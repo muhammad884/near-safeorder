@@ -60,7 +60,7 @@ function hashesOf(results: unknown): string[] {
 }
 async function send(txs: unknown[]): Promise<string[]> {
   if (devSession()) return devSend(txs as any[]);
-  const w: any = await connector.wallet();
+  const w: any = chosen ?? (await connector.wallet());
   return hashesOf(await w.signAndSendTransactions({ transactions: txs }));
 }
 
@@ -103,3 +103,40 @@ export const proposeSettlement = (o: Order, buyerAmount: bigint, note: string) =
   send([fc(CONTRACT_ID, 'propose_settlement', { order_id: o.id, buyer_amount: buyerAmount.toString(), note }, 30, 0n)]);
 export const acceptSettlement = simple('accept_settlement', 100);
 export const retrySettlement = simple('retry_settlement', 100);
+
+let chosen: any = null;
+export function walletOptions(): { id: string; name: string; icon?: string }[] {
+  const list = ((connector as any).availableWallets || []) as any[];
+  return list.map((w) => ({ id: w?.manifest?.id, name: w?.manifest?.name || w?.manifest?.id, icon: w?.manifest?.icon })).filter((w) => w.id);
+}
+export async function connectWalletById(id: string): Promise<string> {
+  const w = (((connector as any).availableWallets || []) as any[]).find((x) => x?.manifest?.id === id);
+  if (!w) throw new Error('Wallet not available');
+  const accounts = await w.signIn({ network: 'testnet' });
+  const acc = accounts?.[0]?.accountId ?? (await w.getAccounts())?.[0]?.accountId;
+  if (!acc) throw new Error('The wallet returned no account');
+  chosen = w;
+  try { localStorage.setItem('so-wallet', id); } catch { /* ignore */ }
+  return acc;
+}
+export async function restoreWallet(): Promise<string | null> {
+  try {
+    const id = localStorage.getItem('so-wallet');
+    if (!id) return null;
+    const w = (((connector as any).availableWallets || []) as any[]).find((x) => x?.manifest?.id === id);
+    if (!w) return null;
+    const a = await w.getAccounts();
+    if (a?.[0]?.accountId) { chosen = w; return a[0].accountId; }
+  } catch { /* ignore */ }
+  return null;
+}
+export async function disconnectWallet() {
+  try { await chosen?.signOut?.(); } catch { /* ignore */ }
+  chosen = null;
+  try { localStorage.removeItem('so-wallet'); } catch { /* ignore */ }
+}
+export function resetWalletStorage() {
+  try { Object.keys(localStorage).filter((k) => !k.startsWith('so-') && !k.startsWith('safeorder:')).forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ }
+  try { localStorage.removeItem('so-wallet'); } catch { /* ignore */ }
+  chosen = null;
+}

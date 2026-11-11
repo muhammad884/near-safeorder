@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { KeyPair } from 'near-api-js';
-import { connector, checkKey } from '../lib/near';
+import { checkKey, connectWalletById, disconnectWallet, restoreWallet } from '../lib/near';
 import { devSession, startDev, stopDev, publicKeyOf } from '../lib/devwallet';
 
 export type Role = 'buyer' | 'seller';
@@ -8,6 +8,7 @@ export type Demo = { buyer: { id: string; key: string }; seller: { id: string; k
 const DEMO_KEY = 'so-demo';
 const FAUCET = 'https://helper.nearprotocol.com/account';
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const hasSaved = () => { try { return !!localStorage.getItem('so-wallet'); } catch { return false; } };
 
 async function makeAcct(role: Role) {
   const id = `demo${role}-${Math.random().toString(36).slice(2, 8)}.testnet`;
@@ -31,6 +32,7 @@ export function useWallet() {
   const [demo, setDemo] = useState<Demo | null>(null);
   const [demoBusy, setDemoBusy] = useState(false);
   const [demoErr, setDemoErr] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [ready, setReady] = useState(false);
 
   const activate = (d: Demo) => {
@@ -48,24 +50,25 @@ export function useWallet() {
 
   useEffect(() => {
     let alive = true;
-    const c: any = connector;
-    const onIn = (p: any) => { const id = p?.accounts?.[0]?.accountId; if (alive && id) setWalletId(id); };
-    const onOut = () => { if (alive) setWalletId(null); };
-    c.on('wallet:signIn', onIn);
-    c.on('wallet:signOut', onOut);
     try { const raw = sessionStorage.getItem(DEMO_KEY); if (raw) activate(JSON.parse(raw)); } catch { /* ignore */ }
     (async () => {
-      try {
-        const w = await c.wallet();
-        const a = await w.getAccounts();
-        if (alive && a?.[0]?.accountId) setWalletId(a[0].accountId);
-      } catch { /* not connected */ }
+      for (let i = 0; i < 8 && alive && hasSaved(); i++) {
+        const id = await restoreWallet();
+        if (id) { if (alive) setWalletId(id); break; }
+        await sleep(700);
+      }
       if (alive) setReady(true);
     })();
-    return () => { alive = false; c.off?.('wallet:signIn', onIn); c.off?.('wallet:signOut', onOut); };
+    return () => { alive = false; };
   }, []);
 
-  const connect = () => { (connector as any).connect(); };
+  const connect = () => setPickerOpen(true);
+  const closePicker = () => setPickerOpen(false);
+  const pick = async (id: string) => {
+    const acc = await connectWalletById(id);
+    setWalletId(acc);
+    setPickerOpen(false);
+  };
 
   const startDemo = async () => {
     setDemoErr(null); setDemoBusy(true);
@@ -94,8 +97,8 @@ export function useWallet() {
   const disconnect = async () => {
     if (demo) return exitDemo();
     if (devSession()) { stopDev(); setDevId(null); return; }
-    try { const c: any = connector; const w = await c.wallet(); await c.disconnect(w); } catch { /* ignore */ }
+    await disconnectWallet();
     setWalletId(null);
   };
-  return { accountId: devId ?? walletId, ready, connect, loginDev, disconnect, demo, demoBusy, demoErr, startDemo, switchRole, exitDemo };
+  return { accountId: devId ?? walletId, ready, connect, pickerOpen, closePicker, pick, loginDev, disconnect, demo, demoBusy, demoErr, startDemo, switchRole, exitDemo };
 }

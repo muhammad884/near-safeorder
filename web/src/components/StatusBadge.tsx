@@ -1,3 +1,4 @@
+import { useT } from '../lib/i18n';
 import type { Status } from '../types';
 const map: Record<Status, string> = {
   Created: 'bg-slate-500/15 text-slate-600 dark:text-slate-300',
@@ -12,5 +13,6 @@ const map: Record<Status, string> = {
   Settled: 'bg-teal-500/15 text-teal-700 dark:text-teal-300',
 };
 export default function StatusBadge({ status }: { status: Status }) {
-  return <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${map[status]}`}>{status}</span>;
+  const { t } = useT();
+  return <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${map[status]}`}>{t('status.' + status)}</span>;
 }
