@@ -9,8 +9,8 @@ const input = 'w-full rounded-lg border border-line bg-bg px-3 py-2.5 text-ink o
 const ID_RE = /^[a-z0-9][a-z0-9._-]{1,63}$/;
 
 export default function CreateOrder({ account, busy, onConnect, run, onDone }: P) {
-  const [mode, setMode] = useState<'buy' | 'sell'>('sell');
-  const [other, setOther] = useState('');
+  const [mode, setMode] = useState<'buy' | 'sell'>(sessionStorage.getItem('so-demo-role') === 'buyer' ? 'buy' : 'sell');
+  const [other, setOther] = useState(sessionStorage.getItem('so-demo-peer') || '');
   const [desc, setDesc] = useState('');
   const [token, setToken] = useState<Token>('Near');
   const [amount, setAmount] = useState('');
