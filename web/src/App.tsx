@@ -49,7 +49,7 @@ export default function App() {
     <div className="min-h-screen">
       <Header page={page} setPage={setPage} account={w.accountId} onConnect={w.connect} onDisconnect={w.disconnect} />
       {w.demo && <DemoBar demo={w.demo} onSwitch={w.switchRole} onExit={w.exitDemo} />}
-      {!w.accountId && <div className="mx-auto max-w-5xl px-4 pt-4"><DemoCta onStart={w.startDemo} busy={w.demoBusy} err={w.demoErr} /><div className="h-3" /><DevLogin onLogin={w.loginDev} /></div>}
+      {!w.accountId && <div className="mx-auto max-w-5xl px-4 pt-4"><DemoCta onStart={w.startDemo} busy={w.demoBusy} err={w.demoErr} />{new URLSearchParams(window.location.search).get('dev') === '1' && <><div className="h-3" /><DevLogin onLogin={w.loginDev} /></>}</div>}
       <main className="mx-auto max-w-5xl px-4 py-6 pb-28">
         {page === 'pay' && payParam > 0 && <PayPage orderId={payParam} account={w.accountId} busy={busy} run={run} onConnect={w.connect} onNav={setPage} />}
         {page === 'overview' && <Overview account={w.accountId} orders={o.orders} total={o.total} onNav={setPage} onConnect={w.connect} />}

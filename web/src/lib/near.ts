@@ -107,7 +107,7 @@ export const retrySettlement = simple('retry_settlement', 100);
 let chosen: any = null;
 export function walletOptions(): { id: string; name: string; icon?: string }[] {
   const list = ((connector as any).availableWallets || []) as any[];
-  return list.map((w) => ({ id: w?.manifest?.id, name: w?.manifest?.name || w?.manifest?.id, icon: w?.manifest?.icon })).filter((w) => w.id);
+  return list.map((w) => ({ id: w?.manifest?.id, name: w?.manifest?.name || w?.manifest?.id, icon: w?.manifest?.icon })).filter((w) => w.id && !['ledger', 'near-cli'].includes(w.id));
 }
 export async function connectWalletById(id: string): Promise<string> {
   const w = (((connector as any).availableWallets || []) as any[]).find((x) => x?.manifest?.id === id);
