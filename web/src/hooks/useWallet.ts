@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { KeyPair } from 'near-api-js';
-import { checkKey, connectWalletById, disconnectWallet, restoreWallet } from '../lib/near';
+import { checkKey, connectViaLibrary, connectWalletById, disconnectWallet, restoreWallet } from '../lib/near';
 import { devSession, startDev, stopDev, publicKeyOf } from '../lib/devwallet';
 
 export type Role = 'buyer' | 'seller';
@@ -70,6 +70,12 @@ export function useWallet() {
     setPickerOpen(false);
   };
 
+  const pickLibrary = async () => {
+    const acc = await connectViaLibrary();
+    setWalletId(acc);
+    setPickerOpen(false);
+  };
+
   const startDemo = async () => {
     setDemoErr(null); setDemoBusy(true);
     try {
@@ -100,5 +106,5 @@ export function useWallet() {
     await disconnectWallet();
     setWalletId(null);
   };
-  return { accountId: devId ?? walletId, ready, connect, pickerOpen, closePicker, pick, loginDev, disconnect, demo, demoBusy, demoErr, startDemo, switchRole, exitDemo };
+  return { accountId: devId ?? walletId, ready, connect, pickerOpen, closePicker, pick, pickLibrary, loginDev, disconnect, demo, demoBusy, demoErr, startDemo, switchRole, exitDemo };
 }

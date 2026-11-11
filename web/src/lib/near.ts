@@ -140,3 +140,14 @@ export function resetWalletStorage() {
   try { localStorage.removeItem('so-wallet'); } catch { /* ignore */ }
   chosen = null;
 }
+
+export async function connectViaLibrary(): Promise<string> {
+  const c: any = connector;
+  const w = await c.connect();
+  const a = await w.getAccounts();
+  const acc = a?.[0]?.accountId;
+  if (!acc) throw new Error('The wallet returned no account');
+  chosen = w;
+  try { localStorage.setItem('so-wallet', w?.manifest?.id || ''); } catch { /* ignore */ }
+  return acc;
+}

@@ -56,7 +56,7 @@ export default function App() {
         {page === 'create' && <CreateOrder key={w.accountId ?? 'x'} account={w.accountId} busy={busy} onConnect={w.connect} run={run} onDone={() => setPage('orders')} />}
         {page === 'orders' && <MyOrders account={w.accountId} orders={o.orders} loading={o.loading} error={o.error} busy={busy} run={run} onConnect={w.connect} onNav={setPage} onRefresh={o.refresh} />}
       </main>
-      <WalletPicker open={w.pickerOpen} onClose={w.closePicker} onPick={w.pick} />
+      <WalletPicker open={w.pickerOpen} onClose={w.closePicker} onPick={w.pick} onPickLibrary={w.pickLibrary} />
       {(busy || notice) && (
         <div className="fixed inset-x-0 bottom-0 z-20 p-3">
           <div className="mx-auto flex max-w-xl items-start gap-3 rounded-xl border border-line bg-card p-3 shadow-lg">
