@@ -15,7 +15,9 @@ jobs:
           targets: wasm32-unknown-unknown
       - run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/near/cargo-near/releases/latest/download/cargo-near-installer.sh | sh
       - working-directory: contract
-        run: cargo near build non-reproducible-wasm
+        run: |
+          cargo test
+          cargo near build non-reproducible-wasm
       - run: cp contract/target/near/safeorder.wasm safeorder.wasm
       - uses: softprops/action-gh-release@v2
         with:
