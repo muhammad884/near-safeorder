@@ -107,9 +107,13 @@ export const retrySettlement = simple('retry_settlement', 100);
 let chosen: any = null;
 export function walletOptions(): { id: string; name: string; icon?: string }[] {
   const list = ((connector as any).availableWallets || []) as any[];
-  return list.map((w) => ({ id: w?.manifest?.id, name: w?.manifest?.name || w?.manifest?.id, icon: w?.manifest?.icon })).filter((w) => w.id && !['ledger', 'near-cli'].includes(w.id));
+  const base = list
+    .map((w) => ({ id: w?.manifest?.id as string, name: (w?.manifest?.name || w?.manifest?.id) as string, icon: w?.manifest?.icon as string | undefined }))
+    .filter((w) => w.id && !['ledger', 'near-cli', 'meteor-wallet'].includes(w.id));
+  return [{ id: 'sel:meteor-wallet', name: 'Meteor Wallet (recommended)', icon: undefined as string | undefined }, ...base];
 }
 export async function connectWalletById(id: string): Promise<string> {
+  if (id.startsWith('sel:')) return connectSelector(id.slice(4));
   const w = (((connector as any).availableWallets || []) as any[]).find((x) => x?.manifest?.id === id);
   if (!w) throw new Error('Wallet not available');
   const accounts = await w.signIn({ network: 'testnet' });
@@ -123,6 +127,14 @@ export async function restoreWallet(): Promise<string | null> {
   try {
     const id = localStorage.getItem('so-wallet');
     if (!id) return null;
+    if (id.startsWith('sel:')) {
+      const sel = await getSelector();
+      if (!sel.isSignedIn()) return null;
+      const sw = await sel.wallet();
+      const sa = await sw.getAccounts();
+      if (sa?.[0]?.accountId) { chosen = sw; return sa[0].accountId; }
+      return null;
+    }
     const w = (((connector as any).availableWallets || []) as any[]).find((x) => x?.manifest?.id === id);
     if (!w) return null;
     const a = await w.getAccounts();
@@ -149,5 +161,26 @@ export async function connectViaLibrary(): Promise<string> {
   if (!acc) throw new Error('The wallet returned no account');
   chosen = w;
   try { localStorage.setItem('so-wallet', w?.manifest?.id || ''); } catch { /* ignore */ }
+  return acc;
+}
+
+let selectorP: Promise<any> | null = null;
+export function getSelector(): Promise<any> {
+  if (!selectorP) {
+    selectorP = (async () => {
+      const [core, meteor] = await Promise.all([import('@near-wallet-selector/core'), import('@near-wallet-selector/meteor-wallet')]);
+      return core.setupWalletSelector({ network: 'testnet', modules: [meteor.setupMeteorWallet()] });
+    })();
+  }
+  return selectorP;
+}
+async function connectSelector(id: string): Promise<string> {
+  const sel = await getSelector();
+  const w = await sel.wallet(id);
+  const accounts = await w.signIn({ contractId: CONTRACT_ID, methodNames: [] });
+  const acc = accounts?.[0]?.accountId;
+  if (!acc) throw new Error('The wallet returned no account');
+  chosen = w;
+  try { localStorage.setItem('so-wallet', 'sel:' + id); } catch { /* ignore */ }
   return acc;
 }

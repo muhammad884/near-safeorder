@@ -21,7 +21,7 @@ export default function WalletPicker({ open, onClose, onPick, onPickLibrary }: P
     const tick = () => {
       const l = walletOptions();
       setList(l);
-      if (!l.length && n++ < 20) timer = setTimeout(tick, 500);
+      if (l.length < 2 && n++ < 20) timer = setTimeout(tick, 500);
     };
     timer = setTimeout(tick, 0);
     return () => clearTimeout(timer);

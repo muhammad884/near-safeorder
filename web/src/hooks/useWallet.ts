@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { KeyPair } from 'near-api-js';
-import { checkKey, connectViaLibrary, connectWalletById, disconnectWallet, restoreWallet } from '../lib/near';
+import { checkKey, getSelector, connectViaLibrary, connectWalletById, disconnectWallet, restoreWallet } from '../lib/near';
 import { devSession, startDev, stopDev, publicKeyOf } from '../lib/devwallet';
 
 export type Role = 'buyer' | 'seller';
@@ -50,6 +50,7 @@ export function useWallet() {
 
   useEffect(() => {
     let alive = true;
+    getSelector().catch(() => { /* wallet library not ready */ });
     try { const raw = sessionStorage.getItem(DEMO_KEY); if (raw) activate(JSON.parse(raw)); } catch { /* ignore */ }
     (async () => {
       for (let i = 0; i < 8 && alive && hasSaved(); i++) {
