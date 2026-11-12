@@ -7,6 +7,14 @@ Escrow for online sales on **NEAR Testnet**. People buy and sell through WhatsAp
 - **USDC used (Circle native, testnet):** `3e2210e1184b45b64c8a434c0a7e7b23cc04ea7eb7a6c3c32520d03d4afcb8af`
 - **Track:** Real-World Money. Built solo.
 
+## Another project by the same builder
+
+This builder is entering two independent projects in the NEAR Hackathon, and each README names the other:
+
+- **NEAR AI Wallet Guardian** (separate repository and separate deployment)
+  - Repository: https://github.com/muhammad884/near-ai-wallet-guardian
+  - Live demo: https://near-ai-wallet-guardian.vercel.app
+
 ## Try it in one minute (no wallet needed)
 
 Open the app and press **Start demo**. It creates two throwaway testnet accounts (a buyer and a seller) in your browser tab, with a switch between them. Testnet only, no real money. The keys live in that tab only (session storage) and disappear when it closes.
