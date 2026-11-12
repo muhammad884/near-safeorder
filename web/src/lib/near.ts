@@ -58,15 +58,25 @@ function hashesOf(results: unknown): string[] {
   const arr = Array.isArray(results) ? results : [results];
   return arr.map((r: any) => r?.transaction?.hash ?? r?.transaction_outcome?.id ?? '').filter(Boolean);
 }
+const withNaj = (txs: any[]) => txs.map((tx) => ({
+  ...tx,
+  actions: tx.actions.map((a: any) => (a.functionCall ? a : { ...a, functionCall: {
+    methodName: a.params.methodName,
+    args: new TextEncoder().encode(JSON.stringify(a.params.args)),
+    gas: BigInt(a.params.gas),
+    deposit: BigInt(a.params.deposit),
+  } })),
+}));
+let chosenSel = false;
 async function send(txs: unknown[]): Promise<string[]> {
   if (devSession()) return devSend(txs as any[]);
   const w: any = chosen ?? (await connector.wallet());
   try {
-    return hashesOf(await w.signAndSendTransactions({ transactions: txs }));
+    return hashesOf(await w.signAndSendTransactions({ transactions: chosenSel ? withNaj(txs as any[]) : txs }));
   } catch (e) {
     if (!/Unsupported NAJ action/i.test(String((e as Error)?.message || e))) throw e;
     const out: string[] = [];
-    for (const tx of txs as any[]) out.push(...hashesOf(await w.signAndSendTransaction(tx)));
+    for (const tx of txs as any[]) out.push(...hashesOf(await w.signAndSendTransaction(chosenSel ? withNaj([tx])[0] : tx)));
     return out;
   }
 }
@@ -127,6 +137,7 @@ export async function connectWalletById(id: string): Promise<string> {
   const acc = accounts?.[0]?.accountId ?? (await w.getAccounts())?.[0]?.accountId;
   if (!acc) throw new Error('The wallet returned no account');
   chosen = w;
+  chosenSel = false;
   try { localStorage.setItem('so-wallet', id); } catch { /* ignore */ }
   return acc;
 }
@@ -139,13 +150,13 @@ export async function restoreWallet(): Promise<string | null> {
       if (!sel.isSignedIn()) return null;
       const sw = await sel.wallet();
       const sa = await sw.getAccounts();
-      if (sa?.[0]?.accountId) { chosen = sw; return sa[0].accountId; }
+      if (sa?.[0]?.accountId) { chosen = sw; chosenSel = true; return sa[0].accountId; }
       return null;
     }
     const w = (((connector as any).availableWallets || []) as any[]).find((x) => x?.manifest?.id === id);
     if (!w) return null;
     const a = await w.getAccounts();
-    if (a?.[0]?.accountId) { chosen = w; return a[0].accountId; }
+    if (a?.[0]?.accountId) { chosen = w; chosenSel = false; return a[0].accountId; }
   } catch { /* ignore */ }
   return null;
 }
@@ -167,6 +178,7 @@ export async function connectViaLibrary(): Promise<string> {
   const acc = a?.[0]?.accountId;
   if (!acc) throw new Error('The wallet returned no account');
   chosen = w;
+  chosenSel = false;
   try { localStorage.setItem('so-wallet', w?.manifest?.id || ''); } catch { /* ignore */ }
   return acc;
 }
@@ -188,6 +200,7 @@ async function connectSelector(id: string): Promise<string> {
   const acc = accounts?.[0]?.accountId;
   if (!acc) throw new Error('The wallet returned no account');
   chosen = w;
+  chosenSel = true;
   try { localStorage.setItem('so-wallet', 'sel:' + id); } catch { /* ignore */ }
   return acc;
 }
