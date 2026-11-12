@@ -61,7 +61,14 @@ function hashesOf(results: unknown): string[] {
 async function send(txs: unknown[]): Promise<string[]> {
   if (devSession()) return devSend(txs as any[]);
   const w: any = chosen ?? (await connector.wallet());
-  return hashesOf(await w.signAndSendTransactions({ transactions: txs }));
+  try {
+    return hashesOf(await w.signAndSendTransactions({ transactions: txs }));
+  } catch (e) {
+    if (!/Unsupported NAJ action/i.test(String((e as Error)?.message || e))) throw e;
+    const out: string[] = [];
+    for (const tx of txs as any[]) out.push(...hashesOf(await w.signAndSendTransaction(tx)));
+    return out;
+  }
 }
 
 export const createOrder = (p: { seller: string; description: string; token: Token; amount: bigint; hours: number }) =>
