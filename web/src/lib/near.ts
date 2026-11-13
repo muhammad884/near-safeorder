@@ -84,7 +84,7 @@ async function send(txs: unknown[]): Promise<string[]> {
 export const createOrder = (p: { seller: string; description: string; token: Token; amount: bigint; hours: number }) =>
   send([fc(CONTRACT_ID, 'create_order', {
     seller: p.seller, description: p.description, amount: p.amount.toString(), token: p.token, ship_window_hours: p.hours,
-  }, 30, 10n ** 22n)]); // 0.01 NEAR for storage, excess is refunded by the contract
+  }, 30, 2n * 10n ** 22n)]); // 0.01 NEAR for storage, excess is refunded by the contract
 
 export const payNear = (o: Order) => send([fc(CONTRACT_ID, 'pay_near', { order_id: o.id }, 30, BigInt(o.amount))]);
 
@@ -115,10 +115,10 @@ export async function checkKey(accountId: string, publicKey: string) {
 
 export const fetchOrder = (id: number) => view<Order | null>(CONTRACT_ID, 'get_order', { order_id: id });
 export const createInvoice = (p: { description: string; token: Token; amount: bigint; hours: number; buyer: string | null }) =>
-  send([fc(CONTRACT_ID, 'create_invoice', { description: p.description, amount: p.amount.toString(), token: p.token, ship_window_hours: p.hours, buyer: p.buyer }, 30, 10n ** 22n)]);
+  send([fc(CONTRACT_ID, 'create_invoice', { description: p.description, amount: p.amount.toString(), token: p.token, ship_window_hours: p.hours, buyer: p.buyer }, 30, 2n * 10n ** 22n)]);
 export const proposeSettlement = (o: Order, buyerAmount: bigint, note: string) =>
   send([fc(CONTRACT_ID, 'propose_settlement', { order_id: o.id, buyer_amount: buyerAmount.toString(), note }, 30, 0n)]);
-export const acceptSettlement = simple('accept_settlement', 100);
+export const acceptSettlement = (o: Order, buyerAmount: string) => send([fc(CONTRACT_ID, 'accept_settlement', { order_id: o.id, buyer_amount: buyerAmount }, 100, 0n)]);
 export const retrySettlement = simple('retry_settlement', 100);
 
 let chosen: any = null;

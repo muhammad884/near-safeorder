@@ -3,7 +3,7 @@
 Escrow for online sales on **NEAR Testnet**. People buy and sell through WhatsApp, Instagram and Telegram, where one side always has to trust the other first. With SafeOrder the buyer pays **NEAR or native USDC (NEP-141)** into a smart contract, and the seller is paid only after the buyer confirms delivery.
 
 - **Live app:** https://near-safeorder.vercel.app
-- **Contract (testnet):** `safeorder11110805.testnet`
+- **Contract (testnet):** `safeorder11130813.testnet`
 - **USDC used (Circle native, testnet):** `3e2210e1184b45b64c8a434c0a7e7b23cc04ea7eb7a6c3c32520d03d4afcb8af`
 - **Track:** Real-World Money. Built solo.
 
@@ -51,7 +51,7 @@ The contract cannot know whether a parcel arrived and does **not** pretend to. T
        v
     SafeOrder contract (Rust, near-sdk 5)  <-- ft_transfer_call / ft_transfer -->  USDC (NEP-141)
 
-- `contract/` Rust contract and 55 unit tests
+- `contract/` Rust contract and 72 unit tests
 - `web/` React app
 - `scripts/` Node helpers used for on-chain checks (`deploy.mjs`, `e2e.mjs`, `proof.mjs`, `mkaccts.mjs`)
 - `.github/workflows/build.yml` runs `cargo test` and builds the wasm with `cargo near`
@@ -61,22 +61,22 @@ The contract cannot know whether a parcel arrived and does **not** pretend to. T
 | Method | Who | What |
 |---|---|---|
 | `new(usdc_contract)` | deployer | Sets the one accepted USDC contract (not hardcoded) |
-| `create_order(seller, description, amount, token, ship_window_hours)` payable | buyer | Buyer-created order. About 0.01 NEAR attached for storage, the unused part is refunded |
+| `create_order(seller, description, amount, token, ship_window_hours)` payable | buyer | Buyer-created order. About 0.02 NEAR attached for storage, the unused part is refunded |
 | `create_invoice(description, amount, token, ship_window_hours, buyer?)` payable | seller | Seller-created order. With no buyer, the first account that pays becomes the buyer |
 | `pay_near(order_id)` payable | buyer | Deposit must equal the amount exactly |
 | `ft_on_transfer(sender_id, amount, msg)` | USDC contract | `msg` is the order id. Rejects other tokens, wrong sender, wrong amount, wrong state. A panic makes the token contract refund the sender |
 | `mark_shipped`, `confirm_delivery`, `open_dispute` | seller, buyer, buyer | State changes with caller and state checks |
 | `request_refund` | buyer | Only while Funded and after the deadline |
 | `seller_refund` | seller | Funded, Shipped or Disputed |
-| `propose_settlement(order_id, buyer_amount, note)`, `accept_settlement`, `retry_settlement` | buyer or seller | Negotiated split. Each leg is paid separately; a failed leg is remembered and can be retried |
+| `propose_settlement(order_id, buyer_amount, note)`, `accept_settlement(order_id, buyer_amount)`, `retry_settlement` | buyer or seller | Negotiated split. Each leg is paid separately; a failed leg is remembered and can be retried |
 | `on_settled`, `on_leg` | contract only | Finalize or roll back payouts |
 | `get_order`, `get_orders_by_account`, `get_usdc_contract`, `get_total_orders` | anyone | Views |
 
-Safety design: amounts are `u128` in smallest units (NEAR 24 decimals, USDC 6) with checked arithmetic. Before any payout the order is moved to a pending state, so a second call cannot pay twice; if a single payout fails, the callback restores the previous state. Settlement amounts are zeroed before the transfers and restored for any failed leg.
+Safety design: amounts are `u128` in smallest units (NEAR 24 decimals, USDC 6) with checked arithmetic. Before any payout the order is moved to a pending state, so a second call cannot pay twice; if a single payout fails, the callback restores the previous state. Settlement amounts are zeroed before the transfers and restored for any failed leg. `accept_settlement` must repeat the amount of the proposal being accepted, so a proposal that was changed in the meantime cannot be accepted by mistake. Order creation reserves extra storage so later state changes never draw on the contract balance.
 
 ## What was tested
 
-**Unit tests:** 55 (`cd contract && cargo test`, also run in CI): order creation, NEAR and USDC deposits, wrong token contract, wrong amount, wrong sender, unauthorized shipping, confirm, refund and dispute, invalid order ids and state transitions, refund before and after the deadline, refund rejected after shipping, dispute, double release, double refund, invoices (first payer becomes buyer, seller cannot pay own invoice), settlement proposals and acceptance.
+**Unit tests:** 72 (`cd contract && cargo test`, also run in CI): order creation, NEAR and USDC deposits, wrong token contract, wrong amount, wrong sender, unauthorized shipping, confirm, refund and dispute, invalid order ids and state transitions, refund before and after the deadline, refund rejected after shipping, dispute, double release, double refund, invoices (first payer becomes buyer, seller cannot pay own invoice), settlement proposals and acceptance.
 
 **On testnet, real transactions** (scripts and the web app, throwaway test accounts):
 - NEAR flow: create, pay, ship, confirm, *Released*. The seller received the exact amount (measured +0.3000 NEAR for a 0.3 NEAR order).
@@ -89,7 +89,7 @@ Safety design: amounts are `u128` in smallest units (NEAR 24 decimals, USDC 6) w
 ## Not verified and limitations
 
 - Shipping, confirming, disputing and settling signed by a real wallet were not run, and neither was a USDC `ft_transfer_call` signed by a real wallet. Other wallets (Intear, Nightly) were not verified. On the test phone the built-in NEAR Connect Meteor flow fails (the browser lacks Ed25519 in WebCrypto), so the app connects Meteor through the wallet-selector module.
-- Refund after the shipping deadline is covered by unit tests but was not run on-chain end to end. The payout-failure rollback (`on_settled`, `on_leg`) is not covered by a test and was never triggered on-chain. A USDC settlement split was not run on-chain.
+- Refund after the shipping deadline is covered by unit tests but was not run on-chain end to end. The payout-failure rollback (`on_settled`, `on_leg`) is unit-tested through extracted functions, but a failed payout was never triggered on-chain. A USDC settlement split was not run on-chain.
 - A dispute without agreement has **no resolution path**: funds stay locked unless the buyer confirms or the seller refunds. There is no arbitrator in this MVP.
 - Testnet only. Not audited. The contract account key is held by the deployer. No upgrade or admin logic.
 - USDC payouts need the receiver registered on the token; the app registers the escrow contract and the seller when the buyer pays.
@@ -108,3 +108,21 @@ NEAR Intents (pay with any token or chain, settle in USDC), gasless transactions
 Config (`.env.example`): `VITE_CONTRACT_ID`, `VITE_USDC_ID`, `VITE_RPC_URL`. Deploy to Vercel with **Root Directory = `web`**. The contract wasm is built by GitHub Actions and published in the `wasm-latest` release; `scripts/deploy.mjs <account>.testnet` deploys it (it needs `near-api-js` in `scripts/`).
 
 Never put a real private key into any testnet tool.
+
+## Security review (v3) and remaining limitations
+
+Self-reviewed with AI assistance, not externally audited. Looked at unauthorized actions, reentrancy, double payouts and locked funds.
+
+Changed in v3:
+- `accept_settlement` is bound to the exact proposal being accepted: if the proposal changed in the meantime, the call is rejected.
+- Order creation reserves extra storage so later updates (deadline, proposal) are paid by the order creator, not from the contract balance.
+- Payout callback logic lives in small pure functions, so rollback and per-leg recovery are unit-tested. 72 tests in total, including failed payouts, retries, the exact deadline boundary and unauthorized calls.
+- On-chain check on the v3 contract: accepting with a different amount than the proposal was rejected, and settlement and release paid the exact amounts.
+
+Checked and found sound: the order moves to a pending status before any payout (no double release or double refund), callbacks are private, USDC deposits are accepted only from the configured token contract, amounts use checked arithmetic.
+
+Still open:
+- There is no arbitrator or mediator. A dispute without agreement keeps funds locked. A mutually agreed mediator is future work.
+- A real failed payout (for example a USDC receiver that is not registered) was not triggered on-chain.
+- `get_orders_by_account` scans all orders and would not scale.
+- The deployer's key controls the contract account. No upgrade policy, no audit, testnet only.

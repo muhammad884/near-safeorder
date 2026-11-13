@@ -1,7 +1,7 @@
 import fs from 'fs';
 import * as nearApi from 'near-api-js';
 const { Account, JsonRpcProvider, KeyPairSigner, KeyPair } = nearApi;
-const CONTRACT = fs.readFileSync(process.env.HOME + '/w/contract_id.txt', 'utf8').trim();
+const CONTRACT = fs.readFileSync(process.env.HOME + '/w/contract_id_v3.txt', 'utf8').trim();
 const RPC = 'https://test.rpc.fastnear.com';
 const provider = new JsonRpcProvider({ url: RPC });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -39,7 +39,8 @@ await call(buyer, 'open_dispute', { order_id: id });
 await call(buyer, 'propose_settlement', { order_id: id, buyer_amount: (NEAR / 10n).toString(), note: 'half-ish' });
 await sleep(8000);
 const b0 = await bal(buyer.id), s0 = await bal(seller.id);
-await call(seller, 'accept_settlement', { order_id: id });
+try { await call(seller, 'accept_settlement', { order_id: id, buyer_amount: (NEAR / 20n).toString() }); console.log('!! BUG: wrong-amount accept succeeded'); } catch { console.log('A swapped accept rejected (expected)'); }
+await call(seller, 'accept_settlement', { order_id: id, buyer_amount: (NEAR / 10n).toString() });
 await sleep(10000);
 const b1 = await bal(buyer.id), s1 = await bal(seller.id);
 console.log('A status:', (await view('get_order', { order_id: id })).status);

@@ -112,7 +112,7 @@ export default function OrderCard({ order: o, me, busy, run }: { order: Order; m
               <p>{t('oc.proposed', { who: p.by === me ? t('oc.you') : p.by, b: fromUnits(p.buyer_amount, dec), s: fromUnits(BigInt(o.amount) - BigInt(p.buyer_amount), dec), sym })}</p>
               {p.note && <p className="mt-1 italic text-mute">“{p.note}”</p>}
               {p.by !== me
-                ? <div className="mt-2"><Btn disabled={off} onClick={act('Accept split', () => acceptSettlement(o))}>{t('oc.accept')}</Btn></div>
+                ? <div className="mt-2"><Btn disabled={off} onClick={act('Accept split', () => acceptSettlement(o, p.buyer_amount))}>{t('oc.accept')}</Btn></div>
                 : <p className="mt-1 text-mute">{t('oc.waitOther')}</p>}
             </div>
           ) : <p className="mt-1 text-xs text-mute">{t('oc.noProp')}</p>}

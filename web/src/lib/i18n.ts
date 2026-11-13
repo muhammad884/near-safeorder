@@ -56,7 +56,7 @@ const D: Record<string, [string, string]> = {
   'cr.token': [`Payment token`, `Kuɗin biya`],
   'cr.amount': [`Amount ({sym})`, `Adadi ({sym})`],
   'cr.hours': [`Seller must ship within (hours after payment)`, `Mai sayarwa ya aika cikin (awanni bayan biya)`],
-  'cr.note': [`Creating an order attaches 0.01 NEAR to cover storage; the unused part is refunded automatically. The escrow amount is paid in the next step.`, `Ƙirƙirar oda tana ɗaukar NEAR 0.01 domin ajiya; ragowar ana mayar da ita kai tsaye. Ana biyan kuɗin escrow a mataki na gaba.`],
+  'cr.note': [`Creating an order attaches 0.02 NEAR to cover storage; the unused part is refunded automatically. The escrow amount is paid in the next step.`, `Ƙirƙirar oda tana ɗaukar NEAR 0.02 domin ajiya; ragowar ana mayar da ita kai tsaye. Ana biyan kuɗin escrow a mataki na gaba.`],
   'cr.submitSell': [`Create payment link`, `Ƙirƙiri link ɗin biya`],
   'cr.submitBuy': [`Create order`, `Ƙirƙiri oda`],
   'cr.e.acct': [`Enter a valid NEAR account ID`, `Shigar da account ID na NEAR mai inganci`],
