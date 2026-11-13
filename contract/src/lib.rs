@@ -7,6 +7,7 @@ use near_sdk::{
 
 const MAX_DESC: usize = 280;
 const MAX_NOTE: usize = 140;
+const RESERVE_BYTES: u128 = 300;
 const NS_PER_HOUR: u64 = 3_600_000_000_000;
 const MAX_SHIP_HOURS: u64 = 24 * 60;
 const GAS_FT_TRANSFER: Gas = Gas::from_tgas(15);
@@ -165,13 +166,14 @@ impl Contract {
     }
 
     /// The other party accepts: the contract pays both shares.
-    pub fn accept_settlement(&mut self, order_id: u64) {
+    pub fn accept_settlement(&mut self, order_id: u64, buyer_amount: U128) {
         let mut o = self.load(order_id);
         let who = env::predecessor_account_id();
         require!(who == o.seller || is_buyer(&o, &who), "Only the buyer or seller can accept");
         require!(matches!(o.status, Status::Shipped | Status::Disputed), "Settlement only after shipping");
         let p = o.proposal.clone().unwrap_or_else(|| env::panic_str("No proposal"));
         require!(p.by != who, "You cannot accept your own proposal");
+        require!(p.buyer_amount.0 == buyer_amount.0, "Proposal changed, review it again");
         o.owed_buyer = p.buyer_amount;
         o.owed_seller = U128(o.amount.0 - p.buyer_amount.0);
         o.proposal = None;
@@ -192,8 +194,7 @@ impl Contract {
         require!(env::promise_results_count() == 1, "Expected one promise result");
         let ok = env::promise_result_checked(0, 1024).is_ok();
         let mut o = self.load(order_id);
-        require!(matches!(o.status, Status::Releasing | Status::Refunding), "Order is not settling");
-        o.status = if ok { done } else { prev };
+        Self::apply_settled(&mut o, ok, prev, done);
         self.orders.insert(order_id, o);
         ok
     }
@@ -203,14 +204,7 @@ impl Contract {
         require!(env::promise_results_count() == 1, "Expected one promise result");
         let ok = env::promise_result_checked(0, 1024).is_ok();
         let mut o = self.load(order_id);
-        o.pending_legs = o.pending_legs.saturating_sub(1);
-        if !ok {
-            let slot = if to_buyer { &mut o.owed_buyer } else { &mut o.owed_seller };
-            slot.0 = slot.0.checked_add(amount.0).unwrap_or_else(|| env::panic_str("Overflow"));
-        }
-        if o.pending_legs == 0 && o.owed_buyer.0 == 0 && o.owed_seller.0 == 0 {
-            o.status = Status::Settled;
-        }
+        Self::apply_leg(&mut o, ok, to_buyer, amount);
         self.orders.insert(order_id, o);
         ok
     }
@@ -267,7 +261,7 @@ impl Contract {
         );
         self.orders.flush();
         let used = env::storage_usage().saturating_sub(before) as u128;
-        let cost = env::storage_byte_cost().as_yoctonear().checked_mul(used).unwrap_or_else(|| env::panic_str("Overflow"));
+        let cost = env::storage_byte_cost().as_yoctonear().checked_mul(used + RESERVE_BYTES).unwrap_or_else(|| env::panic_str("Overflow"));
         let deposit = env::attached_deposit().as_yoctonear();
         require!(deposit >= cost, "Attach more NEAR to cover order storage");
         if deposit > cost {
@@ -284,6 +278,22 @@ impl Contract {
                 require!(*who != o.seller, "Seller cannot pay own order");
                 o.buyer = Some(who.clone());
             }
+        }
+    }
+
+    fn apply_settled(o: &mut Order, ok: bool, prev: Status, done: Status) {
+        require!(matches!(o.status, Status::Releasing | Status::Refunding), "Order is not settling");
+        o.status = if ok { done } else { prev };
+    }
+
+    fn apply_leg(o: &mut Order, ok: bool, to_buyer: bool, amount: U128) {
+        o.pending_legs = o.pending_legs.saturating_sub(1);
+        if !ok {
+            let slot = if to_buyer { &mut o.owed_buyer } else { &mut o.owed_seller };
+            slot.0 = slot.0.checked_add(amount.0).unwrap_or_else(|| env::panic_str("Overflow"));
+        }
+        if o.pending_legs == 0 && o.owed_buyer.0 == 0 && o.owed_seller.0 == 0 {
+            o.status = Status::Settled;
         }
     }
 
@@ -861,18 +871,32 @@ mod tests_v2 {
             .build());
     }
     fn setup() -> Contract { ctx(accounts(2), 0, 0); Contract::new(usdc()) }
+    fn deadline() -> u64 { 2_000 + 24 * NS_PER_HOUR }
     fn invoice(c: &mut Contract, buyer: Option<AccountId>, t: Token) -> u64 {
         ctx(accounts(1), NEAR, 1_000);
         let amt = if t == Token::Near { 2 * NEAR } else { 5_000_000 };
         c.create_invoice("Phone".to_string(), U128(amt), t, 24, buyer)
     }
-    fn shipped(c: &mut Contract) -> u64 {
+    fn funded(c: &mut Contract) -> u64 {
         ctx(accounts(0), NEAR, 1_000);
         let id = c.create_order(accounts(1), "Phone".to_string(), U128(2 * NEAR), Token::Near, 24);
         ctx(accounts(0), 2 * NEAR, 2_000);
         c.pay_near(id);
+        id
+    }
+    fn shipped(c: &mut Contract) -> u64 {
+        let id = funded(c);
         ctx(accounts(1), 0, 3_000);
         c.mark_shipped(id);
+        id
+    }
+    // seller proposes buyer gets NEAR (half), buyer accepts: order is Settling
+    fn settling(c: &mut Contract) -> u64 {
+        let id = shipped(c);
+        ctx(accounts(1), 0, 4_000);
+        c.propose_settlement(id, U128(NEAR), "split".to_string());
+        ctx(accounts(0), 0, 5_000);
+        c.accept_settlement(id, U128(NEAR));
         id
     }
 
@@ -918,11 +942,7 @@ mod tests_v2 {
     #[test]
     fn settlement_pays_both_legs() {
         let mut c = setup();
-        let id = shipped(&mut c);
-        ctx(accounts(0), 0, 4_000);
-        c.propose_settlement(id, U128(NEAR), "half back".to_string());
-        ctx(accounts(1), 0, 5_000);
-        c.accept_settlement(id);
+        let id = settling(&mut c);
         let o = c.get_order(id).unwrap();
         assert_eq!(o.status, Status::Settling);
         assert_eq!(o.pending_legs, 2);
@@ -937,7 +957,7 @@ mod tests_v2 {
         ctx(accounts(1), 0, 4_000);
         c.propose_settlement(id, U128(2 * NEAR), "sorry".to_string());
         ctx(accounts(0), 0, 5_000);
-        c.accept_settlement(id);
+        c.accept_settlement(id, U128(2 * NEAR));
         assert_eq!(c.get_order(id).unwrap().pending_legs, 1);
     }
 
@@ -949,7 +969,7 @@ mod tests_v2 {
         c.open_dispute(id);
         c.propose_settlement(id, U128(NEAR / 2), "".to_string());
         ctx(accounts(1), 0, 5_000);
-        c.accept_settlement(id);
+        c.accept_settlement(id, U128(NEAR / 2));
         assert_eq!(c.get_order(id).unwrap().status, Status::Settling);
     }
 
@@ -960,7 +980,7 @@ mod tests_v2 {
         let id = shipped(&mut c);
         ctx(accounts(0), 0, 4_000);
         c.propose_settlement(id, U128(NEAR), "x".to_string());
-        c.accept_settlement(id);
+        c.accept_settlement(id, U128(NEAR));
     }
 
     #[test]
@@ -980,15 +1000,23 @@ mod tests_v2 {
         ctx(accounts(0), 0, 4_000);
         c.propose_settlement(id, U128(NEAR), "x".to_string());
         ctx(accounts(2), 0, 4_100);
-        c.accept_settlement(id);
+        c.accept_settlement(id, U128(NEAR));
+    }
+
+    #[test]
+    #[should_panic(expected = "Only the buyer or seller can propose")]
+    fn stranger_cannot_propose() {
+        let mut c = setup();
+        let id = shipped(&mut c);
+        ctx(accounts(2), 0, 4_000);
+        c.propose_settlement(id, U128(NEAR), "x".to_string());
     }
 
     #[test]
     #[should_panic(expected = "Settlement only after shipping")]
     fn no_settlement_before_shipping() {
         let mut c = setup();
-        ctx(accounts(0), NEAR, 1_000);
-        let id = c.create_order(accounts(1), "x".to_string(), U128(2 * NEAR), Token::Near, 24);
+        let id = funded(&mut c);
         c.propose_settlement(id, U128(NEAR), "x".to_string());
     }
 
@@ -999,5 +1027,185 @@ mod tests_v2 {
         let id = shipped(&mut c);
         ctx(accounts(2), 0, 4_000);
         c.retry_settlement(id);
+    }
+
+    #[test]
+    #[should_panic(expected = "Note must be at most 140 characters")]
+    fn long_note_rejected() {
+        let mut c = setup();
+        let id = shipped(&mut c);
+        ctx(accounts(0), 0, 4_000);
+        c.propose_settlement(id, U128(NEAR), "a".repeat(141));
+    }
+
+    // ---- the proposal-swap race is closed ----
+    #[test]
+    #[should_panic(expected = "Proposal changed")]
+    fn accept_rejects_swapped_proposal() {
+        let mut c = setup();
+        let id = shipped(&mut c);
+        ctx(accounts(1), 0, 4_000);
+        c.propose_settlement(id, U128(NEAR), "fair".to_string());
+        ctx(accounts(1), 0, 4_100);
+        c.propose_settlement(id, U128(NEAR / 10), "changed".to_string());
+        ctx(accounts(0), 0, 4_200);
+        c.accept_settlement(id, U128(NEAR));
+    }
+
+    #[test]
+    fn accept_matches_replaced_proposal() {
+        let mut c = setup();
+        let id = shipped(&mut c);
+        ctx(accounts(1), 0, 4_000);
+        c.propose_settlement(id, U128(NEAR), "fair".to_string());
+        ctx(accounts(1), 0, 4_100);
+        c.propose_settlement(id, U128(NEAR / 10), "changed".to_string());
+        ctx(accounts(0), 0, 4_200);
+        c.accept_settlement(id, U128(NEAR / 10));
+        assert_eq!(c.get_order(id).unwrap().status, Status::Settling);
+    }
+
+    #[test]
+    #[should_panic(expected = "Settlement only after shipping")]
+    fn cannot_accept_twice() {
+        let mut c = setup();
+        let id = settling(&mut c);
+        ctx(accounts(0), 0, 5_100);
+        c.accept_settlement(id, U128(NEAR));
+    }
+
+    // ---- failed and successful payouts (callback logic) ----
+    #[test]
+    fn failed_release_payout_restores_shipped() {
+        let mut c = setup();
+        let id = shipped(&mut c);
+        ctx(accounts(0), 0, 4_000);
+        let _ = c.confirm_delivery(id);
+        let mut o = c.get_order(id).unwrap();
+        assert_eq!(o.status, Status::Releasing);
+        Contract::apply_settled(&mut o, false, Status::Shipped, Status::Released);
+        assert_eq!(o.status, Status::Shipped);
+    }
+
+    #[test]
+    fn successful_release_payout_marks_released() {
+        let mut c = setup();
+        let id = shipped(&mut c);
+        ctx(accounts(0), 0, 4_000);
+        let _ = c.confirm_delivery(id);
+        let mut o = c.get_order(id).unwrap();
+        Contract::apply_settled(&mut o, true, Status::Shipped, Status::Released);
+        assert_eq!(o.status, Status::Released);
+    }
+
+    #[test]
+    fn failed_refund_payout_restores_funded() {
+        let mut c = setup();
+        let id = funded(&mut c);
+        ctx(accounts(0), 0, deadline() + 1);
+        let _ = c.request_refund(id);
+        let mut o = c.get_order(id).unwrap();
+        assert_eq!(o.status, Status::Refunding);
+        Contract::apply_settled(&mut o, false, Status::Funded, Status::Refunded);
+        assert_eq!(o.status, Status::Funded);
+    }
+
+    #[test]
+    fn successful_refund_payout_marks_refunded() {
+        let mut c = setup();
+        let id = funded(&mut c);
+        ctx(accounts(0), 0, deadline() + 1);
+        let _ = c.request_refund(id);
+        let mut o = c.get_order(id).unwrap();
+        Contract::apply_settled(&mut o, true, Status::Funded, Status::Refunded);
+        assert_eq!(o.status, Status::Refunded);
+    }
+
+    #[test]
+    #[should_panic(expected = "Order is not settling")]
+    fn payout_callback_rejects_non_pending_order() {
+        let mut c = setup();
+        let id = shipped(&mut c);
+        let mut o = c.get_order(id).unwrap();
+        Contract::apply_settled(&mut o, true, Status::Shipped, Status::Released);
+    }
+
+    // ---- settlement legs: failure, retry, completion ----
+    #[test]
+    fn failed_leg_is_owed_again_and_can_be_retried() {
+        let mut c = setup();
+        let id = settling(&mut c);
+        let mut o = c.get_order(id).unwrap();
+        assert_eq!(o.pending_legs, 2);
+        Contract::apply_leg(&mut o, false, true, U128(NEAR));
+        Contract::apply_leg(&mut o, true, false, U128(NEAR));
+        assert_eq!(o.status, Status::Settling);
+        assert_eq!(o.owed_buyer.0, NEAR);
+        assert_eq!(o.owed_seller.0, 0);
+        assert_eq!(o.pending_legs, 0);
+        let _ = c.orders.insert(id, o);
+        ctx(accounts(2), 0, 6_000);
+        c.retry_settlement(id);
+        let mut o = c.get_order(id).unwrap();
+        assert_eq!(o.owed_buyer.0, 0);
+        assert_eq!(o.pending_legs, 1);
+        Contract::apply_leg(&mut o, true, true, U128(NEAR));
+        assert_eq!(o.status, Status::Settled);
+    }
+
+    #[test]
+    fn both_legs_succeed_then_settled() {
+        let mut c = setup();
+        let id = settling(&mut c);
+        let mut o = c.get_order(id).unwrap();
+        Contract::apply_leg(&mut o, true, true, U128(NEAR));
+        assert_eq!(o.status, Status::Settling);
+        Contract::apply_leg(&mut o, true, false, U128(NEAR));
+        assert_eq!(o.status, Status::Settled);
+    }
+
+    // ---- deadlines and unauthorized refunds ----
+    #[test]
+    fn ship_allowed_exactly_at_deadline() {
+        let mut c = setup();
+        let id = funded(&mut c);
+        ctx(accounts(1), 0, deadline());
+        c.mark_shipped(id);
+        assert_eq!(c.get_order(id).unwrap().status, Status::Shipped);
+    }
+
+    #[test]
+    #[should_panic(expected = "Shipping deadline not reached")]
+    fn refund_not_allowed_exactly_at_deadline() {
+        let mut c = setup();
+        let id = funded(&mut c);
+        ctx(accounts(0), 0, deadline());
+        let _ = c.request_refund(id);
+    }
+
+    #[test]
+    #[should_panic(expected = "Only the buyer can refund")]
+    fn seller_cannot_request_refund() {
+        let mut c = setup();
+        let id = funded(&mut c);
+        ctx(accounts(1), 0, deadline() + 1);
+        let _ = c.request_refund(id);
+    }
+
+    #[test]
+    #[should_panic(expected = "Refund only before shipping")]
+    fn refund_rejected_while_settling() {
+        let mut c = setup();
+        let id = settling(&mut c);
+        ctx(accounts(0), 0, deadline() + 1);
+        let _ = c.request_refund(id);
+    }
+
+    #[test]
+    #[should_panic(expected = "Attach more NEAR")]
+    fn creation_requires_storage_reserve() {
+        let mut c = setup();
+        ctx(accounts(0), 3_000_000_000_000_000_000_000, 1_000);
+        c.create_order(accounts(1), "x".to_string(), U128(1), Token::Near, 24);
     }
 }
