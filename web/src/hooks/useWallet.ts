@@ -18,6 +18,7 @@ async function makeAcct(role: Role) {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ newAccountId: id, newAccountPublicKey: pub }),
   });
+  if (res.status === 429) throw new Error('The public testnet faucet is rate-limited for your network right now. Switch between Wi-Fi and mobile data, connect a wallet instead, or try again later.');
   if (!res.ok) throw new Error(`Testnet faucet unavailable (${res.status}). Try again in a minute.`);
   for (let i = 0; i < 12; i++) {
     await sleep(1500);

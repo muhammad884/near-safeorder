@@ -24,6 +24,8 @@ Open the app and press **Start demo**. It creates two throwaway testnet accounts
 3. Seller: **Mark as shipped**. Buyer: **Confirm delivery**. The order shows *Released* and every step links to the transaction on nearblocks.
 4. For a problem case: the buyer taps **Report a problem**, then either side proposes a split of the money and the other accepts.
 
+Demo accounts come from the public NEAR testnet faucet, which rate-limits requests per network (HTTP 429). If the demo reports that the faucet is rate-limited, switch networks, try again later, or connect Meteor Wallet instead.
+
 The UI is available in **English and Hausa** (HA/EN button), with light and dark mode.
 
 ## How it works
